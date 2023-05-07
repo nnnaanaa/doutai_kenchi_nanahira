@@ -6,24 +6,20 @@ import pyaudio
 import time
 import cv2
 import multiprocessing
+import datetime
 
 def main():
     inst = MotionDetection()
     inst.motion_detection()
 
 def speak(text=None,speaker=54): # spaker_id = ななひら
-        
-        text = "動体を検知しました。"
-        
         # voicevox engine
         host = "127.0.0.1"
         port = 50021
-
         params = (
             ("text", text),
             ("speaker", speaker)
         )
-
         try:
             init_q = requests.post(
                 f"http://{host}:{port}/audio_query",
@@ -40,10 +36,8 @@ def speak(text=None,speaker=54): # spaker_id = ななひら
         except requests.exceptions.RequestException as e:
             print(e)
             return False
-
         # メモリ展開
         audio = io.BytesIO(res.content)
-
         with wave.open(audio,'rb') as f:
             # 音声再生処理
             p = pyaudio.PyAudio()
@@ -51,13 +45,12 @@ def speak(text=None,speaker=54): # spaker_id = ななひら
             def _callback(in_data, frame_count, time_info, status):
                 data = f.readframes(frame_count)
                 return (data, pyaudio.paContinue)
-
+            
             stream = p.open(format=p.get_format_from_width(width=f.getsampwidth()),
                             channels=f.getnchannels(),
                             rate=f.getframerate(),
                             output=True,
                             stream_callback=_callback)
-
             # 音声再生
             stream.start_stream()
             while stream.is_active():
@@ -66,6 +59,13 @@ def speak(text=None,speaker=54): # spaker_id = ななひら
             stream.stop_stream()
             stream.close()
             p.terminate()
+
+def speakmsg():
+    now = datetime.datetime.now()
+    time_string = now.strftime('%Y年%m月%d日 %H時%M分%S秒')
+    text = f"{time_string}に動体を検知しました。"
+    text += "この内容は記録されます。"
+    return text
 
 class MotionDetection:
     def __init__(self):
@@ -118,11 +118,11 @@ class MotionDetection:
             else:
                 # 諸般の事情で矩形検出とした。
                 # voicevox起動(非同期実行)
-                text = "動体を検知しました。"
+                text = speakmsg()
 
                 # 子プロセスが存在しないときのみプロセスを生成する。
                 if multiprocessing.active_children() == []:
-                    p = multiprocessing.Process(target=speak)
+                    p = multiprocessing.Process(target=speak, args=(text,))
                     p.start()
 
                 x,y,w,h = cv2.boundingRect(target)
