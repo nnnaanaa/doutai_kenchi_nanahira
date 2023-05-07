@@ -5,18 +5,20 @@ import wave
 import pyaudio
 import time
 import cv2
-import threading
+import multiprocessing
 
 def main():
     inst = MotionDetection()
     inst.motion_detection()
 
-class VoicevoxEngine:
-    def __init__(self,host="127.0.0.1",port=50021):
-        self.host = host
-        self.port = port
+def speak(text=None,speaker=54): # spaker_id = ななひら
+        
+        text = "動体を検知しました。"
+        
+        # voicevox engine
+        host = "127.0.0.1"
+        port = 50021
 
-    def speak(self,text=None,speaker=54): # spaker_id = ななひら
         params = (
             ("text", text),
             ("speaker", speaker)
@@ -24,12 +26,12 @@ class VoicevoxEngine:
 
         try:
             init_q = requests.post(
-                f"http://{self.host}:{self.port}/audio_query",
+                f"http://{host}:{port}/audio_query",
                 params=params
             )
 
             res = requests.post(
-                f"http://{self.host}:{self.port}/synthesis",
+                f"http://{host}:{port}/synthesis",
                 headers={"Content-Type": "application/json"},
                 params=params,
                 data=json.dumps(init_q.json())
@@ -65,16 +67,9 @@ class VoicevoxEngine:
             stream.close()
             p.terminate()
 
-# 非同期実行にしないと後続処理が実行できない。
 class MotionDetection:
     def __init__(self):
         self.cap = cv2.VideoCapture(0)
-        self.voicevox_engine = VoicevoxEngine()
-
-    def kimi_no_say(self):
-        # threadingの動作を見る
-        time.sleep(10)
-        print("kimi_no_say")
 
     def motion_detection(self):
         before = None
@@ -121,13 +116,14 @@ class MotionDetection:
                 areaframe = frame
                 cv2.putText(areaframe, 'not detected', (0,50), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255,0), 3, cv2.LINE_AA)
             else:
-                # 動体検知あり→イベント
                 # 諸般の事情で矩形検出とした。
-                
                 # voicevox起動(非同期実行)
                 text = "動体を検知しました。"
-                t1 = threading.Thread(target = self.voicevox_engine.speak(text))
-                t1.start()
+
+                # 子プロセスが存在しないときのみプロセスを生成する。
+                if multiprocessing.active_children() == []:
+                    p = multiprocessing.Process(target=speak)
+                    p.start()
 
                 x,y,w,h = cv2.boundingRect(target)
                 areaframe = cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
@@ -136,7 +132,6 @@ class MotionDetection:
             # キー入力を1ms待って、k が27（ESC）だったらBreakする
             k = cv2.waitKey(1)
             if k == 27:
-                t1.join()
                 break
 
         # キャプチャをリリースして、ウィンドウをすべて閉じる
