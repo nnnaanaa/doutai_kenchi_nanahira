@@ -7,6 +7,7 @@ import time
 import cv2
 import multiprocessing
 import datetime
+from speaks_log import nanahira_speaks_log
 
 def main():
     inst = MotionDetection()
@@ -65,6 +66,9 @@ def speakmsg():
     time_string = now.strftime('%Y年%m月%d日 %H時%M分%S秒')
     text = f"{time_string}に動体を検知しました。"
     text += "この内容は記録されます。"
+
+    # ログへの出力
+    nanahira_speaks_log().info("logging")
     return text
 
 class MotionDetection:
@@ -118,10 +122,9 @@ class MotionDetection:
             else:
                 # 諸般の事情で矩形検出とした。
                 # voicevox起動(非同期実行)
-                text = speakmsg()
-
                 # 子プロセスが存在しないときのみプロセスを生成する。
                 if multiprocessing.active_children() == []:
+                    text = speakmsg()
                     p = multiprocessing.Process(target=speak, args=(text,))
                     p.start()
 
